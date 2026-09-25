@@ -12,7 +12,7 @@ function memDb(): DatabaseSync {
 describe("souls", () => {
 	it("migra para v2 com as tabelas", () => {
 		const db = memDb();
-		expect(schemaVersion(db)).toBe(3);
+		expect(schemaVersion(db)).toBe(4);
 		db.close();
 	});
 

@@ -11,6 +11,7 @@ import { config as loadEnv } from "dotenv";
 import { ConfigStore, secret } from "./config.ts";
 import { openDatabase } from "./db.ts";
 import { DiscordGateway } from "./gateway.ts";
+import { apiLlmCaller, familiarityBlock, startConsolidation } from "./memory/index.ts";
 import { recordTurn } from "./metrics.ts";
 import { SoulStore } from "./souls.ts";
 
@@ -55,10 +56,13 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 		async (channelId, authorId, text) => {
 			const settings = config.all();
 			const role = roleOf(authorId, settings);
+			const soul = souls.bodyFor(channelId);
+			const familiar = familiarityBlock(db, { personId: authorId, channelId });
+			const systemExtra = [soul, familiar].filter(Boolean).join("\n\n");
 			return sessions.ask(channelId, role, text, {
 				source: "discord",
 				model: settings.chat.model,
-				systemExtra: souls.bodyFor(channelId),
+				systemExtra: systemExtra || undefined,
 				onTurn: (r) => recordTurn(db, r),
 			});
 		},
@@ -102,6 +106,19 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 		},
 	);
 
+	const chatKey = secret("CHAT_API_KEY") || secret("OPENCODE_API_KEY");
+	const all = config.all();
+	const stopConsolidation =
+		chatKey && all.chat.model
+			? startConsolidation(db, apiLlmCaller(all.chat.base_url, chatKey, all.chat.model), {
+					channels: all.discord.channel_ids,
+					batchSize: all.memory.batch_size,
+					intervalMs: all.memory.interval_ms,
+					onLog: (msg, attrs) => log.log("info", msg, attrs),
+				})
+			: undefined;
+	if (!chatKey) log.log("warn", "sem CHAT_API_KEY/OPENCODE_API_KEY: consolidação desligada");
+
 	const token = secret("DISCORD_TOKEN");
 	if (!token) throw new Error("DISCORD_TOKEN não definido no ambiente");
 
@@ -130,6 +147,7 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 	return async () => {
 		if (stopping) return;
 		stopping = true;
+		stopConsolidation?.();
 		config.dispose();
 		await gateway.stop();
 		sessions.dispose();

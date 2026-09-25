@@ -301,11 +301,11 @@ describe("search_history", () => {
 });
 
 describe("toolsFor", () => {
-	it("user e admin recebem as 4 tools do bot", () => {
+	it("user e admin recebem as 5 tools do bot", () => {
 		const db = memDb();
 		for (const role of ["user", "admin"] as const) {
 			const names = toolsFor(role, ctx("c1", db, "/tmp/x")).map((t) => t.name);
-			expect(names).toEqual(["web_search", "web_fetch", "download_media", "search_history"]);
+			expect(names).toEqual(["web_search", "web_fetch", "download_media", "search_history", "memory_search"]);
 		}
 		db.close();
 	});

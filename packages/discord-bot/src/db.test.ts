@@ -12,7 +12,7 @@ function memDb(): DatabaseSync {
 describe("migrations", () => {
 	it("applies all migrations and reports the version", () => {
 		const db = memDb();
-		expect(schemaVersion(db)).toBe(3);
+		expect(schemaVersion(db)).toBe(4);
 		const tables = db
 			.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger') ORDER BY name;")
 			.all() as { name: string }[];
@@ -32,6 +32,7 @@ describe("migrations", () => {
 			"open_loops",
 			"ai_requests",
 			"souls",
+			"memory_cursors",
 			"channel_soul",
 			"schema_migrations",
 		]) {
@@ -47,7 +48,7 @@ describe("migrations", () => {
 	it("is idempotent", () => {
 		const db = memDb();
 		migrate(db);
-		expect(schemaVersion(db)).toBe(3);
+		expect(schemaVersion(db)).toBe(4);
 		db.close();
 	});
 

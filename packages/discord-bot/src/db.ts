@@ -14,7 +14,7 @@
 
 import { DatabaseSync } from "node:sqlite";
 
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 interface Migration {
 	version: number;
@@ -221,6 +221,16 @@ CREATE TABLE channel_soul (
 		sql: `
 ALTER TABLE ai_requests ADD COLUMN cached_tokens INTEGER;
 ALTER TABLE ai_requests ADD COLUMN cache_write_tokens INTEGER;
+`,
+	},
+	{
+		version: 4,
+		name: "memory-cursors",
+		sql: `
+CREATE TABLE memory_cursors (
+  channel_id TEXT PRIMARY KEY,
+  last_rowid INTEGER NOT NULL DEFAULT 0
+);
 `,
 	},
 ];

@@ -12,6 +12,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join, normalize, sep } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { ConfigStore } from "./config.ts";
+import { familiarityBlock } from "./memory/index.ts";
 import { recordTurn } from "./metrics.ts";
 import { roleOf } from "./roles.ts";
 import type { ChannelSessions } from "./sessions.ts";
@@ -637,10 +638,12 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 					: () => undefined;
 			let answer: string;
 			try {
+				const familiar = familiarityBlock(db, { personId: settings.dashboard.web_user_id, channelId: key });
+				const systemExtra = [souls.bodyFor(key), familiar].filter(Boolean).join("\n\n");
 				answer = await sessions.ask(key, role, content, {
 					source: "web",
 					model: settings.chat.model,
-					systemExtra: souls.bodyFor(key),
+					systemExtra: systemExtra || undefined,
 					onTurn: (r) => recordTurn(db, r),
 				});
 			} finally {
