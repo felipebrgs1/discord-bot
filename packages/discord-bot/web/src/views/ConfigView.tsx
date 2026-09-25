@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const idsToText = (ids: string[]) => ids.join("\n");
+const idsToText = (ids: string[] | undefined) => (ids ?? []).join("\n");
 const textToIds = (text: string) =>
   text
     .split(/[\s,]+/)
