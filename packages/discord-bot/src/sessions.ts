@@ -91,6 +91,21 @@ export class ChannelSessions {
 		return "";
 	}
 
+	/** Channel ids with a live session (for the web session list). */
+	keys(): string[] {
+		this.sweep();
+		return [...this.entries.keys()];
+	}
+
+	/** Drop a session (web session delete). Returns false when absent. */
+	remove(channelId: string): boolean {
+		const e = this.entries.get(channelId);
+		if (!e) return false;
+		this.factory.dispose(e.session);
+		this.entries.delete(channelId);
+		return true;
+	}
+
 	size(): number {
 		return this.entries.size;
 	}

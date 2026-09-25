@@ -41,12 +41,17 @@ export interface JudgeConfig {
 	timeout_ms: number;
 }
 
+export interface DashboardConfig {
+	web_user_id: string;
+}
+
 export interface BotSettings {
 	discord: DiscordConfig;
 	chat: ChatConfig;
 	bot: BotConfig;
 	memory: MemoryConfig;
 	judge: JudgeConfig;
+	dashboard: DashboardConfig;
 }
 
 export const DEFAULTS: BotSettings = {
@@ -69,6 +74,7 @@ export const DEFAULTS: BotSettings = {
 		shared_channel_ids: [],
 	},
 	judge: { enabled: false, threshold: 0.3, timeout_ms: 4000 },
+	dashboard: { web_user_id: "" },
 };
 
 /** Read a secret from the environment only. Never falls back to the DB. */

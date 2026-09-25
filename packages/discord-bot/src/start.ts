@@ -1,8 +1,8 @@
 /**
- * Composition root (Fase 1): db → config → sessions → gateway.
+ * Composition root: db → config → sessions → gateway (+ dashboard).
  *
- * Secrets come from the environment only (DISCORD_TOKEN); everything else
- * lives in SQLite with code defaults. No YAML, no Postgres, no vectors.
+ * Secrets come from the environment only (DISCORD_TOKEN, optional
+ * DASHBOARD_PASSWORD); everything else lives in SQLite with code defaults.
  */
 
 import { dirname, join } from "node:path";
@@ -13,15 +13,25 @@ import { openDatabase } from "./db.ts";
 import { DiscordGateway } from "./gateway.ts";
 import { roleOf } from "./roles.ts";
 import { ChannelSessions, piSessionFactory } from "./sessions.ts";
+import { startDashboard } from "./webapi.ts";
+import { LogBuffer } from "./weblog.ts";
 
 export interface StartOptions {
 	dbPath: string;
 	cwd?: string;
+	/** Porta do painel; 0 = desligado. Padrão: DASHBOARD_PORT ou 8080. */
+	dashboardPort?: number;
+	dashboardHost?: string;
+	/** Diretório com o build do front (web/dist). */
+	webDir?: string;
 }
 
 export async function startBot(options: StartOptions): Promise<() => Promise<void>> {
 	// Secrets live in packages/discord-bot/.env (gitignored) — never in SQLite.
 	loadEnv({ path: join(dirname(fileURLToPath(import.meta.url)), "..", ".env") });
+
+	const log = new LogBuffer();
+	const emit = (msg: string, attrs?: Record<string, unknown>): void => log.log("info", msg, attrs);
 	const db = openDatabase(options.dbPath);
 	const config = new ConfigStore(db);
 	const sessions = new ChannelSessions(piSessionFactory(options.cwd ?? process.cwd()));
@@ -33,13 +43,33 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 			return sessions.ask(channelId, role, text);
 		},
 		undefined,
-		(tag) => console.log(`logado no Discord como ${tag}`),
+		(tag) => log.log("info", `logado no Discord como ${tag}`),
+		emit,
 	);
 
 	const token = secret("DISCORD_TOKEN");
 	if (!token) throw new Error("DISCORD_TOKEN não definido no ambiente");
 
 	await gateway.start(token);
+
+	const port = options.dashboardPort ?? (process.env["DASHBOARD_PORT"] ? Number(process.env["DASHBOARD_PORT"]) : 8080);
+	let server: { close(cb?: () => void): void } | undefined;
+	if (port > 0) {
+		const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+		server = startDashboard(
+			{
+				db,
+				config,
+				sessions,
+				log,
+				webDir: options.webDir ?? join(root, "web", "dist"),
+				password: secret("DASHBOARD_PASSWORD"),
+			},
+			port,
+			options.dashboardHost ?? "127.0.0.1",
+		);
+		log.log("info", `painel em http://127.0.0.1:${port}`);
+	}
 
 	let stopping = false;
 	return async () => {
@@ -48,6 +78,7 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 		config.dispose();
 		await gateway.stop();
 		sessions.dispose();
+		if (server) await new Promise<void>((r) => server?.close(() => r()));
 		db.close();
 	};
 }

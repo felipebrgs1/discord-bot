@@ -115,11 +115,19 @@ export class DiscordGateway {
 	private readonly getSettings: () => BotSettings;
 	private readonly respond: Respond;
 	private readonly onReady: ((tag: string) => void) | undefined;
+	private readonly emit: (msg: string, attrs?: Record<string, unknown>) => void;
 
-	constructor(getSettings: () => BotSettings, respond: Respond, client?: Client, onReady?: (tag: string) => void) {
+	constructor(
+		getSettings: () => BotSettings,
+		respond: Respond,
+		client?: Client,
+		onReady?: (tag: string) => void,
+		emit: (msg: string, attrs?: Record<string, unknown>) => void = (m) => console.log(m),
+	) {
 		this.getSettings = getSettings;
 		this.respond = respond;
 		this.onReady = onReady;
+		this.emit = emit;
 		this.client =
 			client ??
 			new Client({
@@ -166,13 +174,13 @@ export class DiscordGateway {
 	private async onMessage(message: Message): Promise<void> {
 		const settings = this.getSettings();
 		const eligible = isEligibleChannel(message, settings);
-		console.log(
+		this.emit(
 			`msg canal=${message.channelId} autor=${message.author?.id} guild=${message.guildId} eligible=${eligible}`,
 		);
 		if (!eligible) return;
 		const m = message as GuildMessage;
 		const trigger = this.botUserId !== "" && isTrigger(m, this.botUserId);
-		console.log(`msg trigger=${trigger} mencoes=${m.mentions.users.size}`);
+		this.emit(`msg trigger=${trigger} mencoes=${m.mentions.users.size}`);
 		if (!trigger) return;
 
 		const incoming: Incoming = {
@@ -216,11 +224,11 @@ export class DiscordGateway {
 		}
 		try {
 			const role = roleOf(incoming.authorId, settings);
-			console.log(`resposta canal=${incoming.channelId} role=${role} len=${incoming.text.length}`);
+			this.emit(`resposta canal=${incoming.channelId} role=${role} len=${incoming.text.length}`);
 			const answer = await trackWorking(incoming.message, this.botUserId, () =>
 				this.respond(incoming.channelId, incoming.authorId, incoming.text),
 			);
-			console.log(`resposta ok canal=${incoming.channelId} len=${answer.length}`);
+			this.emit(`resposta ok canal=${incoming.channelId} len=${answer.length}`);
 			this.lastReply.set(incoming.channelId, Date.now());
 			const chunks = splitMessage(answer);
 			let first = true;
@@ -233,7 +241,7 @@ export class DiscordGateway {
 				}
 			}
 		} catch (err) {
-			console.log(`resposta ERRO canal=${incoming.channelId}: ${err instanceof Error ? err.message : String(err)}`);
+			this.emit(`resposta ERRO canal=${incoming.channelId}: ${err instanceof Error ? err.message : String(err)}`);
 			await incoming.message
 				.reply(`falhei aqui: ${err instanceof Error ? err.message : String(err)}`)
 				.catch(() => undefined);

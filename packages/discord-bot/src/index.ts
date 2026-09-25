@@ -3,6 +3,7 @@ export {
 	type BotSettings,
 	type ChatConfig,
 	ConfigStore,
+	type DashboardConfig,
 	DEFAULTS,
 	type DiscordConfig,
 	type JudgeConfig,
@@ -15,6 +16,7 @@ export {
 	isEligibleChannel,
 	isTrigger,
 	type Respond,
+	trackWorking,
 } from "./gateway.ts";
 export { excludeToolsFor, type Role, roleOf } from "./roles.ts";
 export {
@@ -24,3 +26,5 @@ export {
 } from "./sessions.ts";
 export { DISCORD_MAX_LENGTH, splitMessage } from "./split.ts";
 export { type StartOptions, startBot } from "./start.ts";
+export { createWebHandler, startDashboard, type WebDeps } from "./webapi.ts";
+export { LogBuffer, type LogRecord } from "./weblog.ts";

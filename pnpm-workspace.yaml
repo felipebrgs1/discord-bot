@@ -5,6 +5,7 @@ linkWorkspacePackages: true
 preferWorkspacePackages: true
 packages:
   - 'packages/*'
+  - 'packages/discord-bot/web'
   - 'packages/session-backends/*'
   - 'packages/coding-agent/examples/extensions/with-deps'
   - 'packages/coding-agent/examples/extensions/custom-provider-anthropic'
