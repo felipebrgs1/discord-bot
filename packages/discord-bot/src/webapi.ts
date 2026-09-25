@@ -212,7 +212,7 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 			const after = Number(url.searchParams.get("after") ?? "0") || 0;
 			const limit = Math.min(Number(url.searchParams.get("limit") ?? "300") || 300, 1000);
 			const { entries, cursor } = log.after(after, limit);
-			return json(res, 200, { entries, cursor });
+			return json(res, 200, { entries, next: cursor });
 		}
 
 		// ---- chat web (sessões próprias, prefixo web:) ----
@@ -272,10 +272,8 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 			const rows = db
 				.prepare("SELECT * FROM memories WHERE status = 'active' ORDER BY rowid DESC LIMIT ?;")
 				.all(limit) as Record<string, unknown>[];
-			return json(
-				res,
-				200,
-				rows.map((r) => ({
+			return json(res, 200, {
+				items: rows.map((r) => ({
 					id: r["rowid"],
 					channel_id: r["channel_id"],
 					scope: r["scope"],
@@ -288,7 +286,7 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 					version: versionCount(String(r["key"])),
 					updated_at: r["updated_at"],
 				})),
-			);
+			});
 		}
 
 		m = path.match(/^\/api\/memories\/(\d+)\/versions$/);
@@ -302,10 +300,8 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 					"SELECT rowid, content, reason, created_at FROM memory_versions WHERE memory_key = ? ORDER BY rowid;",
 				)
 				.all(String(mem["key"])) as { rowid: number; content: string; reason: string; created_at: string }[];
-			return json(
-				res,
-				200,
-				versions.map((v) => ({
+			return json(res, 200, {
+				versions: versions.map((v) => ({
 					version: v.rowid,
 					kind: mem["kind"],
 					status: mem["status"],
@@ -314,7 +310,7 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 					reason: v.reason,
 					created_at: v.created_at,
 				})),
-			);
+			});
 		}
 
 		m = path.match(/^\/api\/memories\/(\d+)\/(forget|restore)$/);
@@ -340,7 +336,7 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 				String(mem["content"]),
 				reason || (status === "suppressed" ? "esquecido pelo painel" : "restaurado pelo painel"),
 			);
-			return json(res, 200, { ok: true });
+			return json(res, 200, { changed: true });
 		}
 
 		m = path.match(/^\/api\/memories\/(\d+)$/);
@@ -367,7 +363,7 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 				body.content,
 				typeof body?.reason === "string" ? body.reason : "corrigido pelo painel",
 			);
-			return json(res, 200, { ok: true });
+			return json(res, 200, { changed: true });
 		}
 
 		// ---- linha do tempo do aprendizado ----
@@ -399,7 +395,7 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 			]
 				.sort((a, b) => (a.at < b.at ? 1 : -1))
 				.slice(0, limit);
-			return json(res, 200, events);
+			return json(res, 200, { events });
 		}
 
 		// ---- métricas (lê ai_requests; escrita vem na Fase 2) ----
@@ -438,10 +434,10 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 
 		// ---- participação (Fase 3): stubs para o front não quebrar ----
 		if (path === "/api/participation" && method === "GET") {
-			return json(res, 200, []);
+			return json(res, 200, { items: [] });
 		}
 		if (path.startsWith("/api/participation/") && method === "POST") {
-			return json(res, 200, { ok: true });
+			return json(res, 200, { changed: true });
 		}
 
 		if (path === "/api/models" && method === "GET") {
