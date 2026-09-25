@@ -1,0 +1,45 @@
+{
+	"name": "@earendil-works/discord-bot",
+	"version": "0.1.0",
+	"description": "Discord bot built on the pi harness: gateway + SQLite memory, no YAML, no vectors (yet)",
+	"private": true,
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"clean": "shx rm -rf dist",
+		"build": "tsc -p tsconfig.build.json",
+		"test": "vitest --run"
+	},
+	"keywords": [
+		"discord",
+		"bot",
+		"pi"
+	],
+	"author": "felipebrgs1",
+	"license": "MIT",
+	"engines": {
+		"node": ">=22.5.0"
+	},
+	"devDependencies": {
+		"@types/node": "22.19.19",
+		"typescript": "7.0.2",
+		"vitest": "4.1.9"
+	},
+	"dependencies": {
+		"@earendil-works/chord": "workspace:^",
+		"@earendil-works/pi-coding-agent": "workspace:*",
+		"discord.js": "^14.27.0",
+		"dotenv": "^18.0.3"
+	}
+}

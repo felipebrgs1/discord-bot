@@ -1,0 +1,22 @@
+# pnpm workspace — mirrors the `workspaces` globs in package.json.
+# (pnpm does not read npm's `workspaces` field, so the list is duplicated here.
+# Keep both in sync when adding/removing workspace globs.)
+linkWorkspacePackages: true
+preferWorkspacePackages: true
+packages:
+  - 'packages/*'
+  - 'packages/session-backends/*'
+  - 'packages/coding-agent/examples/extensions/with-deps'
+  - 'packages/coding-agent/examples/extensions/custom-provider-anthropic'
+  - 'packages/coding-agent/examples/extensions/custom-provider-gitlab-duo'
+  - 'packages/coding-agent/examples/extensions/sandbox'
+  - 'packages/coding-agent/examples/extensions/gondolin'
+allowBuilds:
+  esbuild: true
+# Upstream gap (npm hoisting masks it): pi-ai imports @smithy/types
+# without declaring it. Declared here instead of editing packages/ai/*
+# so upstream merges stay conflict-free. Candidate for an upstream PR.
+packageExtensions:
+  '@earendil-works/pi-ai':
+    dependencies:
+      '@smithy/types': '4.19.0'
