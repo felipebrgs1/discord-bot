@@ -11,6 +11,7 @@ import { config as loadEnv } from "dotenv";
 import { ConfigStore, secret } from "./config.ts";
 import { openDatabase } from "./db.ts";
 import { DiscordGateway } from "./gateway.ts";
+import { recordTurn } from "./metrics.ts";
 import { roleOf } from "./roles.ts";
 import { ChannelSessions, piSessionFactory } from "./sessions.ts";
 import { startDashboard } from "./webapi.ts";
@@ -39,8 +40,13 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 	const gateway = new DiscordGateway(
 		() => config.all(),
 		async (channelId, authorId, text) => {
-			const role = roleOf(authorId, config.all());
-			return sessions.ask(channelId, role, text);
+			const settings = config.all();
+			const role = roleOf(authorId, settings);
+			return sessions.ask(channelId, role, text, {
+				source: "discord",
+				model: settings.chat.model,
+				onTurn: (r) => recordTurn(db, r),
+			});
 		},
 		undefined,
 		(tag) => log.log("info", `logado no Discord como ${tag}`),

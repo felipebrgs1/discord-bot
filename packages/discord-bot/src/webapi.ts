@@ -12,6 +12,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join, normalize, sep } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { ConfigStore } from "./config.ts";
+import { recordTurn } from "./metrics.ts";
 import { roleOf } from "./roles.ts";
 import type { ChannelSessions } from "./sessions.ts";
 import type { LogBuffer } from "./weblog.ts";
@@ -466,15 +467,87 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 		const failed = db.prepare("SELECT COUNT(*) AS n FROM ai_requests WHERE status <> 'success';").get() as {
 			n: number;
 		};
+		const inSum = db.prepare("SELECT COALESCE(SUM(input_tokens),0) AS s FROM ai_requests;").get() as {
+			s: number;
+		};
+		const outSum = db.prepare("SELECT COALESCE(SUM(output_tokens),0) AS s FROM ai_requests;").get() as {
+			s: number;
+		};
+		const costSum = db.prepare("SELECT COALESCE(SUM(cost),0) AS s FROM ai_requests;").get() as {
+			s: number;
+		};
+		const byModel = db
+			.prepare(
+				`SELECT model, provider, operation, source,
+				 COUNT(*) AS requests, SUM(status <> 'success') AS failures,
+				 COALESCE(SUM(input_tokens),0) AS input_tokens,
+				 COALESCE(SUM(output_tokens),0) AS output_tokens,
+				 COALESCE(SUM(cost),0) AS cost_usd,
+				 AVG(latency_ms) AS avg_latency_ms
+			 FROM ai_requests GROUP BY model, provider, operation, source;`,
+			)
+			.all() as Record<string, number | string>[];
+		const recent = db.prepare("SELECT * FROM ai_requests ORDER BY rowid DESC LIMIT 50;").all() as Record<
+			string,
+			number | string | null
+		>[];
 		const now = new Date().toISOString();
 		return {
 			since: now,
 			until: now,
 			bucket_seconds: 3600,
-			summary: { ...emptyStats(), requests: total.n, failures: failed.n },
+			summary: {
+				...emptyStats(),
+				requests: total.n,
+				failures: failed.n,
+				input_tokens: inSum.s,
+				output_tokens: outSum.s,
+				cost_usd: costSum.s,
+				token_samples: total.n,
+				cost_samples: total.n,
+			},
 			series: [],
-			models: [],
-			recent: [],
+			models: byModel.map((r) => ({
+				...emptyStats(),
+				provider: r["provider"],
+				model: r["model"],
+				operation: r["operation"],
+				source: r["source"],
+				requests: r["requests"],
+				failures: r["failures"],
+				input_tokens: r["input_tokens"],
+				output_tokens: r["output_tokens"],
+				cost_usd: r["cost_usd"],
+				avg_latency_ms: r["avg_latency_ms"],
+				token_samples: r["requests"],
+				cost_samples: r["requests"],
+			})),
+			recent: recent.map((r) => ({
+				id: r["rowid"],
+				started_at: r["created_at"],
+				duration_ms: r["latency_ms"],
+				operation: r["operation"],
+				workflow: "",
+				channel_id: "",
+				source: r["source"],
+				provider: r["provider"],
+				model: r["model"],
+				resolved_model: r["model"],
+				request_id: String(r["rowid"]),
+				success: r["status"] === "success",
+				http_status: r["status"] === "success" ? 200 : 500,
+				attempts: 1,
+				error_kind: r["status"] === "success" ? "" : "error",
+				input_tokens: r["input_tokens"],
+				output_tokens: r["output_tokens"],
+				total_tokens:
+					typeof r["input_tokens"] === "number" && typeof r["output_tokens"] === "number"
+						? (r["input_tokens"] as number) + (r["output_tokens"] as number)
+						: null,
+				cached_tokens: null,
+				cache_write_tokens: null,
+				cost_usd: r["cost"],
+			})),
 			options: { models: [], providers: [] },
 			refresh_ms: 5000,
 		};
@@ -542,7 +615,11 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 					: () => undefined;
 			let answer: string;
 			try {
-				answer = await sessions.ask(key, role, content);
+				answer = await sessions.ask(key, role, content, {
+					source: "web",
+					model: settings.chat.model,
+					onTurn: (r) => recordTurn(db, r),
+				});
 			} finally {
 				try {
 					unsub();

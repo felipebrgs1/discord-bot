@@ -13,6 +13,7 @@ import {
 	getAgentDir,
 	SessionManager,
 } from "@earendil-works/pi-coding-agent";
+import { type StatsTotals, statsOf, type TurnReport } from "./metrics.ts";
 import { excludeToolsFor, type Role } from "./roles.ts";
 
 export interface SessionFactory {
@@ -50,6 +51,13 @@ interface Entry {
 	lastUsed: number;
 }
 
+export interface AskOpts {
+	source?: string;
+	model?: string;
+	provider?: string;
+	onTurn?: (report: TurnReport) => void;
+}
+
 export class ChannelSessions {
 	private readonly entries = new Map<string, Entry>();
 	private readonly idleMs: number;
@@ -81,14 +89,52 @@ export class ChannelSessions {
 	}
 
 	/** Ask the channel's session and return the final assistant text. */
-	async ask(channelId: string, role: Role, message: string): Promise<string> {
+	async ask(channelId: string, role: Role, message: string, opts?: AskOpts): Promise<string> {
 		const session = await this.get(channelId, role);
-		await session.prompt(message);
-		if (typeof session.waitForIdle === "function") await session.waitForIdle();
-		if (typeof session.getLastAssistantText === "function") {
-			return session.getLastAssistantText() ?? "";
+		const before = statsOf(session);
+		const started = Date.now();
+		try {
+			await session.prompt(message);
+			if (typeof session.waitForIdle === "function") await session.waitForIdle();
+			const text = typeof session.getLastAssistantText === "function" ? (session.getLastAssistantText() ?? "") : "";
+			opts?.onTurn?.(this.turnReport(session, before, statsOf(session), started, "success", opts));
+			return text;
+		} catch (err) {
+			opts?.onTurn?.(this.turnReport(session, before, statsOf(session), started, "error", opts));
+			throw err;
 		}
-		return "";
+	}
+
+	private turnReport(
+		session: AgentSession,
+		before: StatsTotals | null,
+		after: StatsTotals | null,
+		started: number,
+		status: "success" | "error",
+		opts?: AskOpts,
+	): TurnReport {
+		let actualId = "";
+		let actualProvider = "";
+		try {
+			const m = (session as unknown as { model?: { id?: unknown; provider?: unknown } }).model;
+			if (m && typeof m === "object") {
+				if (typeof m.id === "string") actualId = m.id;
+				if (typeof m.provider === "string") actualProvider = m.provider;
+			}
+		} catch {
+			/* mantém fallback do config */
+		}
+		return {
+			operation: "chat",
+			model: actualId || opts?.model || "",
+			provider: actualProvider || opts?.provider || "",
+			source: opts?.source ?? "discord",
+			status,
+			latency_ms: Date.now() - started,
+			input_tokens: before && after ? Math.max(0, after.input - before.input) : null,
+			output_tokens: before && after ? Math.max(0, after.output - before.output) : null,
+			cost: before && after ? Math.max(0, after.cost - before.cost) : null,
+		};
 	}
 
 	/** Channel ids with a live session (for the web session list). */
