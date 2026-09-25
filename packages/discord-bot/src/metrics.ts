@@ -15,6 +15,8 @@ export interface TurnReport {
 	latency_ms: number;
 	input_tokens: number | null;
 	output_tokens: number | null;
+	cached_tokens: number | null;
+	cache_write_tokens: number | null;
 	cost: number | null;
 }
 
@@ -23,8 +25,8 @@ export function recordTurn(db: DatabaseSync, r: TurnReport): void {
 		db.prepare(
 			`INSERT INTO ai_requests
        (operation, model, provider, source, status, latency_ms,
-        input_tokens, output_tokens, cost)
-       VALUES (?,?,?,?,?,?,?,?,?);`,
+        input_tokens, output_tokens, cached_tokens, cache_write_tokens, cost)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?);`,
 		).run(
 			r.operation,
 			r.model,
@@ -34,6 +36,8 @@ export function recordTurn(db: DatabaseSync, r: TurnReport): void {
 			Math.round(r.latency_ms),
 			r.input_tokens,
 			r.output_tokens,
+			r.cached_tokens,
+			r.cache_write_tokens,
 			r.cost,
 		);
 	} catch {
@@ -44,6 +48,8 @@ export function recordTurn(db: DatabaseSync, r: TurnReport): void {
 export interface StatsTotals {
 	input: number;
 	output: number;
+	cacheRead: number;
+	cacheWrite: number;
 	cost: number;
 }
 
@@ -52,13 +58,15 @@ export function statsOf(session: unknown): StatsTotals | null {
 		const s = session as { getSessionStats?: () => unknown };
 		if (typeof s.getSessionStats !== "function") return null;
 		const stats = s.getSessionStats() as {
-			tokens?: { input?: unknown; output?: unknown };
+			tokens?: { input?: unknown; output?: unknown; cacheRead?: unknown; cacheWrite?: unknown };
 			cost?: unknown;
 		};
 		const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 		return {
 			input: num(stats.tokens?.input),
 			output: num(stats.tokens?.output),
+			cacheRead: num(stats.tokens?.cacheRead),
+			cacheWrite: num(stats.tokens?.cacheWrite),
 			cost: num(stats.cost),
 		};
 	} catch {

@@ -481,12 +481,23 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 		const costSum = db.prepare("SELECT COALESCE(SUM(cost),0) AS s FROM ai_requests;").get() as {
 			s: number;
 		};
+		const cacheSum = db
+			.prepare(
+				`SELECT COALESCE(SUM(cached_tokens),0) AS rd,
+              COALESCE(SUM(cache_write_tokens),0) AS wr,
+              COUNT(CASE WHEN COALESCE(cached_tokens,0) > 0 OR COALESCE(cache_write_tokens,0) > 0 THEN 1 END) AS samples
+       FROM ai_requests;`,
+			)
+			.get() as { rd: number; wr: number; samples: number };
 		const byModel = db
 			.prepare(
 				`SELECT model, provider, operation, source,
 				 COUNT(*) AS requests, SUM(status <> 'success') AS failures,
 				 COALESCE(SUM(input_tokens),0) AS input_tokens,
 				 COALESCE(SUM(output_tokens),0) AS output_tokens,
+				 COALESCE(SUM(cached_tokens),0) AS cached_tokens,
+				 COALESCE(SUM(cache_write_tokens),0) AS cache_write_tokens,
+				 COUNT(CASE WHEN COALESCE(cached_tokens,0) > 0 OR COALESCE(cache_write_tokens,0) > 0 THEN 1 END) AS cache_samples,
 				 COALESCE(SUM(cost),0) AS cost_usd,
 				 AVG(latency_ms) AS avg_latency_ms
 			 FROM ai_requests GROUP BY model, provider, operation, source;`,
@@ -507,6 +518,9 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 				failures: failed.n,
 				input_tokens: inSum.s,
 				output_tokens: outSum.s,
+				cached_tokens: cacheSum.rd,
+				cache_write_tokens: cacheSum.wr,
+				cache_samples: cacheSum.samples,
 				cost_usd: costSum.s,
 				token_samples: total.n,
 				cost_samples: total.n,
@@ -522,6 +536,9 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 				failures: r["failures"],
 				input_tokens: r["input_tokens"],
 				output_tokens: r["output_tokens"],
+				cached_tokens: r["cached_tokens"],
+				cache_write_tokens: r["cache_write_tokens"],
+				cache_samples: r["cache_samples"],
 				cost_usd: r["cost_usd"],
 				avg_latency_ms: r["avg_latency_ms"],
 				token_samples: r["requests"],
@@ -549,8 +566,8 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 					typeof r["input_tokens"] === "number" && typeof r["output_tokens"] === "number"
 						? (r["input_tokens"] as number) + (r["output_tokens"] as number)
 						: null,
-				cached_tokens: null,
-				cache_write_tokens: null,
+				cached_tokens: r["cached_tokens"],
+				cache_write_tokens: r["cache_write_tokens"],
 				cost_usd: r["cost"],
 			})),
 			options: { models: [], providers: [] },

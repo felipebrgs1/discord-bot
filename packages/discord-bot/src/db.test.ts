@@ -12,7 +12,7 @@ function memDb(): DatabaseSync {
 describe("migrations", () => {
 	it("applies all migrations and reports the version", () => {
 		const db = memDb();
-		expect(schemaVersion(db)).toBe(2);
+		expect(schemaVersion(db)).toBe(3);
 		const tables = db
 			.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger') ORDER BY name;")
 			.all() as { name: string }[];
@@ -37,13 +37,17 @@ describe("migrations", () => {
 		]) {
 			expect(names.has(t), `missing ${t}`).toBe(true);
 		}
+		const cacheCols = db.prepare("SELECT name FROM pragma_table_info('ai_requests');").all() as { name: string }[];
+		const cacheNames = new Set(cacheCols.map((c) => c.name));
+		expect(cacheNames.has("cached_tokens")).toBe(true);
+		expect(cacheNames.has("cache_write_tokens")).toBe(true);
 		db.close();
 	});
 
 	it("is idempotent", () => {
 		const db = memDb();
 		migrate(db);
-		expect(schemaVersion(db)).toBe(2);
+		expect(schemaVersion(db)).toBe(3);
 		db.close();
 	});
 

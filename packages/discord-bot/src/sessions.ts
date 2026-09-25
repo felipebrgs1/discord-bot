@@ -151,6 +151,8 @@ export class ChannelSessions {
 			latency_ms: Date.now() - started,
 			input_tokens: before && after ? Math.max(0, after.input - before.input) : null,
 			output_tokens: before && after ? Math.max(0, after.output - before.output) : null,
+			cached_tokens: before && after ? Math.max(0, after.cacheRead - before.cacheRead) : null,
+			cache_write_tokens: before && after ? Math.max(0, after.cacheWrite - before.cacheWrite) : null,
 			cost: before && after ? Math.max(0, after.cost - before.cost) : null,
 		};
 	}
