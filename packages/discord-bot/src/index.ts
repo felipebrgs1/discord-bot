@@ -18,7 +18,7 @@ export {
 	type Respond,
 	trackWorking,
 } from "./gateway.ts";
-export { excludeToolsFor, type Role, roleOf } from "./roles.ts";
+export { excludedToolsFor, type Role, roleOf } from "./roles.ts";
 export {
 	ChannelSessions,
 	piSessionFactory,

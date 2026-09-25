@@ -12,7 +12,6 @@ export interface DiscordConfig {
 	guild_id: string;
 	channel_ids: string[];
 	admin_ids: string[];
-	moderator_ids: string[];
 }
 
 export interface ChatConfig {
@@ -55,7 +54,7 @@ export interface BotSettings {
 }
 
 export const DEFAULTS: BotSettings = {
-	discord: { guild_id: "", channel_ids: [], admin_ids: [], moderator_ids: [] },
+	discord: { guild_id: "", channel_ids: [], admin_ids: [] },
 	chat: {
 		base_url: "https://openrouter.ai/api/v1",
 		model: "",

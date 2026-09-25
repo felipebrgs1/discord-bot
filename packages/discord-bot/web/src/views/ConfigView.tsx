@@ -98,14 +98,6 @@ export default function ConfigView({ active }: { active: boolean }) {
             />
           </label>
           <label className="block text-sm">
-            Moderadores (um ID por linha)
-            <Textarea
-              rows={2}
-              value={idsToText(form.moderator_ids)}
-              onChange={(e) => set({ moderator_ids: textToIds(e.target.value) })}
-            />
-          </label>
-          <label className="block text-sm">
             ID p/ o chat web (papel do painel; vazio = usuário)
             <Input value={form.web_user_id} onChange={(e) => set({ web_user_id: e.target.value })} />
           </label>

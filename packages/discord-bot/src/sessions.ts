@@ -14,7 +14,7 @@ import {
 	SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { type StatsTotals, statsOf, type TurnReport } from "./metrics.ts";
-import { excludeToolsFor, type Role } from "./roles.ts";
+import { excludedToolsFor, type Role } from "./roles.ts";
 
 export interface SessionFactory {
 	create(channelId: string, role: Role): Promise<AgentSession>;
@@ -31,7 +31,7 @@ export function piSessionFactory(cwd: string): SessionFactory {
 				cwd,
 				resourceLoader: loader,
 				sessionManager: SessionManager.inMemory(),
-				excludeTools: excludeToolsFor(role),
+				excludeTools: excludedToolsFor(role),
 			});
 			return session;
 		},
@@ -69,22 +69,25 @@ export class ChannelSessions {
 		this.idleMs = idleMs;
 	}
 
-	/** Get (creating if needed) the session for a channel+role. */
+	private key(channelId: string, role: Role): string {
+		return `${channelId}::${role}`;
+	}
+
+	/**
+	 * Get (creating if needed) the session for a channel+role.
+	 * Keyed by BOTH: a user never reuses a session created with admin
+	 * tools, and alternating roles don't thrash each other's context.
+	 */
 	async get(channelId: string, role: Role): Promise<AgentSession> {
 		this.sweep();
-		const existing = this.entries.get(channelId);
+		const existing = this.entries.get(this.key(channelId, role));
 		if (existing) {
-			if (existing.role !== role) {
-				// Role changed (config edit): recreate so the tool allowlist applies.
-				this.factory.dispose(existing.session);
-				this.entries.delete(channelId);
-			} else {
-				existing.lastUsed = Date.now();
-				return existing.session;
-			}
+			// Keyed by channel+role (see key()): entry here always matches.
+			existing.lastUsed = Date.now();
+			return existing.session;
 		}
 		const session = await this.factory.create(channelId, role);
-		this.entries.set(channelId, { session, role, lastUsed: Date.now() });
+		this.entries.set(this.key(channelId, role), { session, role, lastUsed: Date.now() });
 		return session;
 	}
 
@@ -140,16 +143,23 @@ export class ChannelSessions {
 	/** Channel ids with a live session (for the web session list). */
 	keys(): string[] {
 		this.sweep();
-		return [...this.entries.keys()];
+		const out = new Set<string>();
+		for (const k of this.entries.keys()) out.add(k.split("::")[0] as string);
+		return [...out];
 	}
 
-	/** Drop a session (web session delete). Returns false when absent. */
+	/** Drop all sessions of a channel (web session delete). */
 	remove(channelId: string): boolean {
-		const e = this.entries.get(channelId);
-		if (!e) return false;
-		this.factory.dispose(e.session);
-		this.entries.delete(channelId);
-		return true;
+		let dropped = false;
+		for (const k of [...this.entries.keys()]) {
+			if (k === channelId || k.startsWith(`${channelId}::`)) {
+				const e = this.entries.get(k);
+				if (e) this.factory.dispose(e.session);
+				this.entries.delete(k);
+				dropped = true;
+			}
+		}
+		return dropped;
 	}
 
 	size(): number {

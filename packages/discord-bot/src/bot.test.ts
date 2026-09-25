@@ -1,27 +1,30 @@
 import { describe, expect, it, vi } from "vitest";
 import { DEFAULTS } from "./config.ts";
 import { trackWorking } from "./gateway.ts";
-import { excludeToolsFor, roleOf } from "./roles.ts";
+import { excludedToolsFor, roleOf } from "./roles.ts";
 import { ChannelSessions, type SessionFactory } from "./sessions.ts";
 import { splitMessage } from "./split.ts";
 
 describe("roleOf", () => {
-	it("resolves admin > mod > user", () => {
+	it("admin ids sao admin, resto (incl. ex-mods) e user", () => {
 		const settings = {
 			...DEFAULTS,
-			discord: { guild_id: "g", channel_ids: [], admin_ids: ["a"], moderator_ids: ["m"] },
+			discord: { guild_id: "g", channel_ids: [], admin_ids: ["a"] },
 		};
 		expect(roleOf("a", settings)).toBe("admin");
-		expect(roleOf("m", settings)).toBe("mod");
+		expect(roleOf("m", settings)).toBe("user");
 		expect(roleOf("x", settings)).toBe("user");
+		expect(roleOf("", settings)).toBe("user");
 	});
 });
 
-describe("excludeToolsFor", () => {
-	it("locks shell/writes for non-admins", () => {
-		expect(excludeToolsFor("admin")).toEqual([]);
-		expect(excludeToolsFor("mod")).toContain("bash");
-		expect(excludeToolsFor("user")).toContain("write");
+describe("excludedToolsFor", () => {
+	it("admin ve tudo; user nao encosta em shell nem arquivo", () => {
+		expect(excludedToolsFor("admin")).toEqual([]);
+		const user = excludedToolsFor("user");
+		for (const t of ["bash", "powershell", "edit", "write", "read", "grep", "find", "ls"]) {
+			expect(user).toContain(t);
+		}
 	});
 });
 
@@ -87,7 +90,7 @@ function stubFactory(): SessionFactory & { created: { channel: string; role: str
 	const created: { channel: string; role: string }[] = [];
 	return {
 		created,
-		async create(channel: string, role: "admin" | "mod" | "user") {
+		async create(channel: string, role: "admin" | "user") {
 			created.push({ channel, role });
 			const prompt = vi.fn(async () => undefined);
 			return {
@@ -113,6 +116,16 @@ describe("ChannelSessions", () => {
 		expect(sessions.size()).toBe(1);
 		sessions.dispose();
 		expect(sessions.size()).toBe(0);
+	});
+
+	it("isolates sessions by role (user never reuses admin tools)", async () => {
+		const factory = stubFactory();
+		const sessions = new ChannelSessions(factory, 60_000);
+		const asUser = await sessions.get("c1", "user");
+		const asAdmin = await sessions.get("c1", "admin");
+		expect(asUser).not.toBe(asAdmin);
+		expect(await sessions.get("c1", "user")).toBe(asUser);
+		sessions.dispose();
 	});
 
 	it("recreates the session when the role changes", async () => {

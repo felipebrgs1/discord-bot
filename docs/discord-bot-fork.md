@@ -262,6 +262,11 @@ mesmo canal continua proibido (resposta duplicada).
 - Pendências honestas: métricas vazias até Fase 2 gravar `ai_requests`;
   `/api/models` sem catálogo (input livre); participação stubada (Fase 3).
 - Painel no ar junto do bot: `http://127.0.0.1:8080` (via SSH tunnel).
+- **Publicado no wrangler (2026-09-25):** `worker.ts` + `wrangler.jsonc`
+  vindos do Go sem mudança (mesmo worker `botdiscord-panel`, mesma URL:
+  https://botdiscord-panel.felipebrgs.workers.dev). Front 200, `/api`
+  atrás do login com a mesma `PANEL_PASSWORD` de antes; proxy VPC →
+  VPS intacto. Backend local segue sem senha (edge autentica).
 
 ## 14. Próximo comando sugerido
 
