@@ -52,7 +52,7 @@ export function searchHistoryTool(ctx: ToolCtx): ToolDefinition {
                ${params.author_id ? "AND m.author_id = ?" : ""}
                ORDER BY rank LIMIT ?;`,
 						)
-						.all(...(ftsArgs(ctx.channelId, q, params) as SQLInputValue[])) as unknown as MsgRow[];
+						.all(...(ftsArgs(ctx.channelId, q, params, limit) as SQLInputValue[])) as unknown as MsgRow[];
 				} else {
 					hits = ctx.db
 						.prepare(
@@ -95,9 +95,15 @@ function sanitizeFts(q: string): string {
 	return terms.join(" ");
 }
 
-function ftsArgs(channelId: string, q: string, params: { days?: number; author_id?: string }): unknown[] {
+function ftsArgs(
+	channelId: string,
+	q: string,
+	params: { days?: number; author_id?: string },
+	limit: number,
+): unknown[] {
 	const args: unknown[] = [channelId, q];
 	if (params.days && params.days > 0) args.push(`-${Math.floor(params.days)} days`);
 	if (params.author_id) args.push(params.author_id);
+	args.push(limit);
 	return args;
 }
