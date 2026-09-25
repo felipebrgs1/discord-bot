@@ -9,6 +9,7 @@
 
 import { Client, Events, GatewayIntentBits, type Message, type OmitPartialGroupDMChannel } from "discord.js";
 import type { BotSettings } from "./config.ts";
+import { discard, pendingAttachments } from "./outbox.ts";
 import { roleOf } from "./roles.ts";
 import { splitMessage } from "./split.ts";
 
@@ -22,6 +23,15 @@ export interface CommandCtx {
 }
 
 export type CommandHandler = (ctx: CommandCtx) => Promise<boolean>;
+
+export interface PersistedMessage {
+	channelId: string;
+	authorId: string;
+	authorName: string;
+	messageId: string;
+	body: string;
+	replyTo?: string;
+}
 
 type GuildMessage = OmitPartialGroupDMChannel<Message<boolean>>;
 
@@ -126,6 +136,8 @@ export class DiscordGateway {
 	private readonly onReady: ((tag: string) => void) | undefined;
 	private readonly emit: (msg: string, attrs?: Record<string, unknown>) => void;
 	private readonly onCommand: CommandHandler | undefined;
+	private readonly outboxDir: string | undefined;
+	private readonly persist: ((m: PersistedMessage) => void) | undefined;
 
 	constructor(
 		getSettings: () => BotSettings,
@@ -134,12 +146,16 @@ export class DiscordGateway {
 		onReady?: (tag: string) => void,
 		emit: (msg: string, attrs?: Record<string, unknown>) => void = (m) => console.log(m),
 		onCommand?: CommandHandler,
+		outboxDir?: string,
+		persist?: (m: PersistedMessage) => void,
 	) {
 		this.getSettings = getSettings;
 		this.respond = respond;
 		this.onReady = onReady;
 		this.emit = emit;
 		this.onCommand = onCommand;
+		this.outboxDir = outboxDir;
+		this.persist = persist;
 		this.client =
 			client ??
 			new Client({
@@ -191,6 +207,18 @@ export class DiscordGateway {
 		);
 		if (!eligible) return;
 		const m = message as GuildMessage;
+		try {
+			this.persist?.({
+				channelId: m.channelId,
+				authorId: m.author.id,
+				authorName: m.author.username,
+				messageId: m.id,
+				body: m.content ?? "",
+				replyTo: m.reference?.messageId,
+			});
+		} catch {
+			/* histórico nunca quebra resposta */
+		}
 		if (m.content.startsWith("!") && !m.author.bot) {
 			try {
 				const handled = await this.onCommand?.({
@@ -240,6 +268,21 @@ export class DiscordGateway {
 		}
 	}
 
+	private async drainOutbox(incoming: Incoming): Promise<void> {
+		if (!this.outboxDir) return;
+		const files = await pendingAttachments(this.outboxDir, incoming.channelId);
+		for (const file of files.slice(0, 3)) {
+			try {
+				await incoming.message.channel.send({ files: [{ attachment: file }] });
+			} catch (err) {
+				this.emit(`anexo ERRO canal=${incoming.channelId}: ${err instanceof Error ? err.message : String(err)}`);
+				break;
+			} finally {
+				await discard(file);
+			}
+		}
+	}
+
 	private async replyOne(incoming: Incoming): Promise<void> {
 		const settings = this.getSettings();
 		const now = Date.now();
@@ -266,7 +309,9 @@ export class DiscordGateway {
 					await incoming.message.channel.send(chunk);
 				}
 			}
+			await this.drainOutbox(incoming);
 		} catch (err) {
+			await this.drainOutbox(incoming);
 			this.emit(`resposta ERRO canal=${incoming.channelId}: ${err instanceof Error ? err.message : String(err)}`);
 			await incoming.message
 				.reply(`falhei aqui: ${err instanceof Error ? err.message : String(err)}`)

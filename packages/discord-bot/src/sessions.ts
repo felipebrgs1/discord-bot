@@ -15,6 +15,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type StatsTotals, statsOf, type TurnReport } from "./metrics.ts";
 import { excludedToolsFor, type Role } from "./roles.ts";
+import { type ToolCtx, toolsFor } from "./tools/index.ts";
 
 export interface SessionFactory {
 	create(channelId: string, role: Role, systemExtra?: string): Promise<AgentSession>;
@@ -22,9 +23,9 @@ export interface SessionFactory {
 }
 
 /** Production factory backed by the pi SDK (needs `pi auth` or a ModelRuntime). */
-export function piSessionFactory(cwd: string): SessionFactory {
+export function piSessionFactory(cwd: string, base?: Omit<ToolCtx, "channelId">): SessionFactory {
 	return {
-		async create(_channelId: string, role: Role, systemExtra?: string): Promise<AgentSession> {
+		async create(channelId: string, role: Role, systemExtra?: string): Promise<AgentSession> {
 			const loader = new DefaultResourceLoader({
 				cwd,
 				agentDir: getAgentDir(),
@@ -36,6 +37,7 @@ export function piSessionFactory(cwd: string): SessionFactory {
 				resourceLoader: loader,
 				sessionManager: SessionManager.inMemory(),
 				excludeTools: excludedToolsFor(role),
+				customTools: base ? toolsFor(role, { ...base, channelId }) : [],
 			});
 			return session;
 		},

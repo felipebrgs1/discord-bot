@@ -280,7 +280,17 @@ mesmo canal continua proibido (resposta duplicada).
   não há 2º nível na execução como no Go — mitigado pela chave canal+papel.
 - `moderator_ids` removido do tipo, do formulário e do banco.
 
-## 15. Próximo comando sugerido
+## 15. Mente em souls (2026-09-25)
+
+- Achado: a personalidade do config **nunca chegava na sessão** — o bot
+  rodava com a mente padrão do pi. Agora injeta via `appendSystemPrompt`.
+- `souls` (tabela, migração v2) + `channel_soul`: personas nomeadas,
+  uma por canal; seed `elmatadore` com a personalidade integral do Go.
+- `!soul <nome>` / `!souls` no Discord (só admin); trocar derruba a
+  sessão do canal p/ a nova encarnar. Painel edita a soul padrão.
+- Novas souls: por enquanto via SQL; comando `!soul-new` fica p/ depois.
+
+## 16. Próximo comando sugerido
 
 ```bash
 cd /home/ubuntu/bot/discord-bot

@@ -270,6 +270,9 @@ importers:
       '@earendil-works/chord':
         specifier: workspace:^
         version: link:../chord
+      '@earendil-works/pi-ai':
+        specifier: workspace:*
+        version: link:../ai
       '@earendil-works/pi-coding-agent':
         specifier: workspace:*
         version: link:../coding-agent

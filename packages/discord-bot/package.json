@@ -38,6 +38,7 @@
 	},
 	"dependencies": {
 		"@earendil-works/chord": "workspace:^",
+		"@earendil-works/pi-ai": "workspace:*",
 		"@earendil-works/pi-coding-agent": "workspace:*",
 		"discord.js": "^14.27.0",
 		"dotenv": "^18.0.3"

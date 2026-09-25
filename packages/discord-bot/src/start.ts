@@ -39,7 +39,14 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 	const emit = (msg: string, attrs?: Record<string, unknown>): void => log.log("info", msg, attrs);
 	const db = openDatabase(options.dbPath);
 	const config = new ConfigStore(db);
-	const sessions = new ChannelSessions(piSessionFactory(options.cwd ?? process.cwd()));
+	const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+	const sessions = new ChannelSessions(
+		piSessionFactory(options.cwd ?? process.cwd(), {
+			db,
+			log,
+			outboxDir: join(root, "outbox"),
+		}),
+	);
 	const souls = new SoulStore(db);
 	souls.ensureSeed(config.all().bot.personality || DEFAULT_SOUL_FALLBACK);
 
@@ -83,6 +90,16 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 			}
 			return true;
 		},
+		join(root, "outbox"),
+		(m) => {
+			try {
+				db.prepare(
+					"INSERT OR IGNORE INTO messages (channel_id, author_id, author_name, message_id, body, reply_to) VALUES (?,?,?,?,?,?);",
+				).run(m.channelId, m.authorId, m.authorName, m.messageId, m.body.slice(0, 4000), m.replyTo ?? null);
+			} catch {
+				/* histórico nunca quebra resposta */
+			}
+		},
 	);
 
 	const token = secret("DISCORD_TOKEN");
@@ -93,7 +110,6 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 	const port = options.dashboardPort ?? (process.env["DASHBOARD_PORT"] ? Number(process.env["DASHBOARD_PORT"]) : 8080);
 	let server: { close(cb?: () => void): void } | undefined;
 	if (port > 0) {
-		const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 		server = startDashboard(
 			{
 				db,
