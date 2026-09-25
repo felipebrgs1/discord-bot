@@ -17,15 +17,19 @@ import { type StatsTotals, statsOf, type TurnReport } from "./metrics.ts";
 import { excludedToolsFor, type Role } from "./roles.ts";
 
 export interface SessionFactory {
-	create(channelId: string, role: Role): Promise<AgentSession>;
+	create(channelId: string, role: Role, systemExtra?: string): Promise<AgentSession>;
 	dispose(session: AgentSession): void;
 }
 
 /** Production factory backed by the pi SDK (needs `pi auth` or a ModelRuntime). */
 export function piSessionFactory(cwd: string): SessionFactory {
 	return {
-		async create(_channelId: string, role: Role): Promise<AgentSession> {
-			const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir() });
+		async create(_channelId: string, role: Role, systemExtra?: string): Promise<AgentSession> {
+			const loader = new DefaultResourceLoader({
+				cwd,
+				agentDir: getAgentDir(),
+				appendSystemPrompt: systemExtra ? [systemExtra] : [],
+			});
 			await loader.reload();
 			const { session } = await createAgentSession({
 				cwd,
@@ -55,11 +59,13 @@ export interface AskOpts {
 	source?: string;
 	model?: string;
 	provider?: string;
+	systemExtra?: string;
 	onTurn?: (report: TurnReport) => void;
 }
 
 export class ChannelSessions {
 	private readonly entries = new Map<string, Entry>();
+	private readonly extra = new Map<string, string>();
 	private readonly idleMs: number;
 
 	private readonly factory: SessionFactory;
@@ -67,6 +73,12 @@ export class ChannelSessions {
 	constructor(factory: SessionFactory, idleMs = 30 * 60 * 1000) {
 		this.factory = factory;
 		this.idleMs = idleMs;
+	}
+
+	private pendingExtra(channelId: string): string | undefined {
+		const v = this.extra.get(channelId);
+		this.extra.delete(channelId);
+		return v;
 	}
 
 	private key(channelId: string, role: Role): string {
@@ -86,13 +98,14 @@ export class ChannelSessions {
 			existing.lastUsed = Date.now();
 			return existing.session;
 		}
-		const session = await this.factory.create(channelId, role);
+		const session = await this.factory.create(channelId, role, this.pendingExtra(channelId));
 		this.entries.set(this.key(channelId, role), { session, role, lastUsed: Date.now() });
 		return session;
 	}
 
 	/** Ask the channel's session and return the final assistant text. */
 	async ask(channelId: string, role: Role, message: string, opts?: AskOpts): Promise<string> {
+		if (opts?.systemExtra !== undefined) this.extra.set(channelId, opts.systemExtra);
 		const session = await this.get(channelId, role);
 		const before = statsOf(session);
 		const started = Date.now();

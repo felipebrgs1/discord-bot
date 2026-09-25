@@ -15,6 +15,7 @@ import type { ConfigStore } from "./config.ts";
 import { recordTurn } from "./metrics.ts";
 import { roleOf } from "./roles.ts";
 import type { ChannelSessions } from "./sessions.ts";
+import { DEFAULT_SOUL, type SoulStore } from "./souls.ts";
 import type { LogBuffer } from "./weblog.ts";
 
 export interface WebDeps {
@@ -26,6 +27,7 @@ export interface WebDeps {
 	webDir: string;
 	/** Senha do painel (DASHBOARD_PASSWORD); vazio = sem login. */
 	password: string;
+	souls: SoulStore;
 }
 
 const SESSION_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -139,7 +141,7 @@ function emptyStats(): Record<string, unknown> {
 }
 
 export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: ServerResponse) => void {
-	const { db, config, sessions, log, webDir, password } = deps;
+	const { db, config, sessions, log, webDir, password, souls } = deps;
 
 	const authed = (req: IncomingMessage): boolean => {
 		if (!password) return true;
@@ -410,7 +412,7 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 			return json(res, 200, {
 				...all.discord,
 				web_user_id: all.dashboard.web_user_id,
-				personality: all.bot.personality,
+				personality: souls.get(DEFAULT_SOUL)?.body ?? all.bot.personality,
 			});
 		}
 		if (path === "/api/config/discord" && method === "PUT") {
@@ -428,7 +430,10 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 				config.set("dashboard", { web_user_id: body["web_user_id"] });
 			}
 			if (typeof body["personality"] === "string" && body["personality"]) {
-				config.set("bot.personality", body["personality"]);
+				// A mente vigente mora nas souls: edita a padrão e derruba
+				// as sessões para a nova encarnar (vale na próxima resposta).
+				souls.save(DEFAULT_SOUL, body["personality"]);
+				for (const key of sessions.keys()) sessions.remove(key);
 			}
 			return json(res, 200, { saved: true, restart_required: true });
 		}
@@ -618,6 +623,7 @@ export function createWebHandler(deps: WebDeps): (req: IncomingMessage, res: Ser
 				answer = await sessions.ask(key, role, content, {
 					source: "web",
 					model: settings.chat.model,
+					systemExtra: souls.bodyFor(key),
 					onTurn: (r) => recordTurn(db, r),
 				});
 			} finally {

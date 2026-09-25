@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { ConfigStore } from "./config.ts";
 import { migrate } from "./db.ts";
 import { ChannelSessions, type SessionFactory } from "./sessions.ts";
+import { SoulStore } from "./souls.ts";
 import { createWebHandler } from "./webapi.ts";
 import { LogBuffer } from "./weblog.ts";
 
@@ -21,6 +22,7 @@ function deps() {
 		db,
 		config: new ConfigStore(db),
 		sessions: new ChannelSessions(nullFactory),
+		souls: new SoulStore(db),
 		log: new LogBuffer(),
 		webDir: "/nao-existe",
 		password: "",

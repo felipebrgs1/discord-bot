@@ -268,7 +268,19 @@ mesmo canal continua proibido (resposta duplicada).
   atrás do login com a mesma `PANEL_PASSWORD` de antes; proxy VPC →
   VPS intacto. Backend local segue sem senha (edge autentica).
 
-## 14. Próximo comando sugerido
+## 14. Permissões: 2 papéis (2026-09-25)
+
+- Fim do `mod`: `admin_ids` → admin (só você), resto → user.
+- user: **sem shell** (`bash`, `powershell`), **sem arquivo** (`read`, `write`,
+  `edit`, `grep`, `find`, `ls`) — nem ler (vazamento). Só as tools que
+  forem construídas pro bot (web, mídia, histórico...), user-safe por padrão.
+- Sessões chaveadas por **canal+papel**: user nunca reaproveita sessão com
+  tools de admin; alternar papéis não destrói contexto um do outro.
+- Limitação honesta: a negação é na criação da sessão (o SDK executa);
+  não há 2º nível na execução como no Go — mitigado pela chave canal+papel.
+- `moderator_ids` removido do tipo, do formulário e do banco.
+
+## 15. Próximo comando sugerido
 
 ```bash
 cd /home/ubuntu/bot/discord-bot

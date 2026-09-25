@@ -10,9 +10,9 @@ function memDb(): DatabaseSync {
 }
 
 describe("migrations", () => {
-	it("applies v1 and reports the version", () => {
+	it("applies all migrations and reports the version", () => {
 		const db = memDb();
-		expect(schemaVersion(db)).toBe(1);
+		expect(schemaVersion(db)).toBe(2);
 		const tables = db
 			.prepare("SELECT name FROM sqlite_master WHERE type IN ('table','trigger') ORDER BY name;")
 			.all() as { name: string }[];
@@ -31,6 +31,8 @@ describe("migrations", () => {
 			"participation_actions",
 			"open_loops",
 			"ai_requests",
+			"souls",
+			"channel_soul",
 			"schema_migrations",
 		]) {
 			expect(names.has(t), `missing ${t}`).toBe(true);
@@ -41,7 +43,7 @@ describe("migrations", () => {
 	it("is idempotent", () => {
 		const db = memDb();
 		migrate(db);
-		expect(schemaVersion(db)).toBe(1);
+		expect(schemaVersion(db)).toBe(2);
 		db.close();
 	});
 

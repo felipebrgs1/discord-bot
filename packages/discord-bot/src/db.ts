@@ -14,7 +14,7 @@
 
 import { DatabaseSync } from "node:sqlite";
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 interface Migration {
 	version: number;
@@ -196,6 +196,23 @@ CREATE TABLE ai_requests (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX ai_requests_created ON ai_requests(created_at);
+`,
+	},
+	{
+		version: 2,
+		name: "souls",
+		sql: `
+-- Souls: switchable personas. channel_soul picks one per channel;
+-- channels without a row use the default soul (see souls.ts).
+CREATE TABLE souls (
+  name TEXT PRIMARY KEY,
+  body TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE TABLE channel_soul (
+  channel_id TEXT PRIMARY KEY,
+  soul_name TEXT NOT NULL
+);
 `,
 	},
 ];

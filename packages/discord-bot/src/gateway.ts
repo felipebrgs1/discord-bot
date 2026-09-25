@@ -14,6 +14,15 @@ import { splitMessage } from "./split.ts";
 
 export type Respond = (channelId: string, authorId: string, text: string) => Promise<string>;
 
+export interface CommandCtx {
+	channelId: string;
+	authorId: string;
+	text: string;
+	reply: (text: string) => Promise<unknown>;
+}
+
+export type CommandHandler = (ctx: CommandCtx) => Promise<boolean>;
+
 type GuildMessage = OmitPartialGroupDMChannel<Message<boolean>>;
 
 interface Incoming {
@@ -116,6 +125,7 @@ export class DiscordGateway {
 	private readonly respond: Respond;
 	private readonly onReady: ((tag: string) => void) | undefined;
 	private readonly emit: (msg: string, attrs?: Record<string, unknown>) => void;
+	private readonly onCommand: CommandHandler | undefined;
 
 	constructor(
 		getSettings: () => BotSettings,
@@ -123,11 +133,13 @@ export class DiscordGateway {
 		client?: Client,
 		onReady?: (tag: string) => void,
 		emit: (msg: string, attrs?: Record<string, unknown>) => void = (m) => console.log(m),
+		onCommand?: CommandHandler,
 	) {
 		this.getSettings = getSettings;
 		this.respond = respond;
 		this.onReady = onReady;
 		this.emit = emit;
+		this.onCommand = onCommand;
 		this.client =
 			client ??
 			new Client({
@@ -179,6 +191,20 @@ export class DiscordGateway {
 		);
 		if (!eligible) return;
 		const m = message as GuildMessage;
+		if (m.content.startsWith("!") && !m.author.bot) {
+			try {
+				const handled = await this.onCommand?.({
+					channelId: m.channelId,
+					authorId: m.author.id,
+					text: m.content,
+					reply: (t) => m.reply(t),
+				});
+				if (handled) return;
+			} catch (err) {
+				this.emit(`comando ERRO: ${err instanceof Error ? err.message : String(err)}`);
+				return;
+			}
+		}
 		const trigger = this.botUserId !== "" && isTrigger(m, this.botUserId);
 		this.emit(`msg trigger=${trigger} mencoes=${m.mentions.users.size}`);
 		if (!trigger) return;

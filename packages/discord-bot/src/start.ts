@@ -12,6 +12,10 @@ import { ConfigStore, secret } from "./config.ts";
 import { openDatabase } from "./db.ts";
 import { DiscordGateway } from "./gateway.ts";
 import { recordTurn } from "./metrics.ts";
+import { SoulStore } from "./souls.ts";
+
+const DEFAULT_SOUL_FALLBACK = "Você é um amigo do servidor: direto, bem-humorado, fala PT-BR.";
+
 import { roleOf } from "./roles.ts";
 import { ChannelSessions, piSessionFactory } from "./sessions.ts";
 import { startDashboard } from "./webapi.ts";
@@ -36,6 +40,8 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 	const db = openDatabase(options.dbPath);
 	const config = new ConfigStore(db);
 	const sessions = new ChannelSessions(piSessionFactory(options.cwd ?? process.cwd()));
+	const souls = new SoulStore(db);
+	souls.ensureSeed(config.all().bot.personality || DEFAULT_SOUL_FALLBACK);
 
 	const gateway = new DiscordGateway(
 		() => config.all(),
@@ -45,12 +51,38 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 			return sessions.ask(channelId, role, text, {
 				source: "discord",
 				model: settings.chat.model,
+				systemExtra: souls.bodyFor(channelId),
 				onTurn: (r) => recordTurn(db, r),
 			});
 		},
 		undefined,
 		(tag) => log.log("info", `logado no Discord como ${tag}`),
 		emit,
+		async ({ channelId, authorId, text, reply }) => {
+			const cmd = text.trim().split(/\s+/);
+			if (cmd[0] !== "!soul" && cmd[0] !== "!souls") return false;
+			if (roleOf(authorId, config.all()) !== "admin") {
+				await reply("só o dono troca a mente do bot.");
+				return true;
+			}
+			if (cmd[0] === "!souls" || cmd.length < 2) {
+				const names =
+					souls
+						.list()
+						.map((x) => x.name)
+						.join(", ") || "(nenhuma)";
+				await reply(`souls: ${names} | aqui: ${souls.channelSoul(channelId)}`);
+				return true;
+			}
+			try {
+				souls.setChannel(channelId, cmd[1] as string);
+				sessions.remove(channelId);
+				await reply(`mente trocada: agora sou **${cmd[1]}** neste canal.`);
+			} catch (err) {
+				await reply(`não rolou: ${err instanceof Error ? err.message : String(err)}`);
+			}
+			return true;
+		},
 	);
 
 	const token = secret("DISCORD_TOKEN");
@@ -70,6 +102,7 @@ export async function startBot(options: StartOptions): Promise<() => Promise<voi
 				log,
 				webDir: options.webDir ?? join(root, "web", "dist"),
 				password: secret("DASHBOARD_PASSWORD"),
+				souls,
 			},
 			port,
 			options.dashboardHost ?? "127.0.0.1",
