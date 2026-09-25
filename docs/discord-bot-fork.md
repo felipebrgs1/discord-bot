@@ -249,7 +249,21 @@ mesmo canal continua proibido (resposta duplicada).
   de regressão (16 testes verdes).
 - Nota: dashboard do Go (porta 8080) morreu junto — Fase 4 futura.
 
-## 13. Próximo comando sugerido
+## 13. Painel web migrado (2026-09-25)
+
+- `web/` copiado do Go (fonte só); aba **Bots virou Config** (form Discord +
+  personalidade + modelo sobre o SQLite — sem YAML, sem multi-bot).
+- `src/webapi.ts` (node:http, zero deps): `/api/meta|logs|chat|sessions|
+  memories|learnings|metrics|config/discord|models|model` + estático SPA.
+- Chat web com sessões `web:*`, mensagens persistidas em `messages`, SSE
+  `accepted/step/done/error` com steps reais de tool; smoke test OK.
+- Login do painel Go estava quebrado (sem rota /auth) — aqui funciona com
+  `DASHBOARD_PASSWORD` opcional (vazio = aberto, como antes na prática).
+- Pendências honestas: métricas vazias até Fase 2 gravar `ai_requests`;
+  `/api/models` sem catálogo (input livre); participação stubada (Fase 3).
+- Painel no ar junto do bot: `http://127.0.0.1:8080` (via SSH tunnel).
+
+## 14. Próximo comando sugerido
 
 ```bash
 cd /home/ubuntu/bot/discord-bot

@@ -1,0 +1,17 @@
+{
+  "name": "botdiscord-panel",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-24",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
+  "vpc_services": [
+    {
+      "binding": "PRIVATE_API",
+      "service_id": "01a0d119-ef20-7123-aa14-d70c3e2686a5"
+    }
+  ]
+}
