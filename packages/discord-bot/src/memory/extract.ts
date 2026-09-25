@@ -113,9 +113,15 @@ export type LlmCaller = (prompt: string) => Promise<unknown>;
 /** Chamada direta ao endpoint de chat (OpenAI-compatible, json_object). */
 export function apiLlmCaller(baseUrl: string, apiKey: string, model: string): LlmCaller {
 	return async (prompt: string) => {
+		const { randomUUID } = await import("node:crypto");
 		const res = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
 			method: "POST",
-			headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${apiKey}`,
+				// O endpoint zen (opencode-go) exige sessão p/ rotear; sem ela dá 400.
+				"x-opencode-session": randomUUID(),
+			},
 			body: JSON.stringify({
 				model,
 				messages: [{ role: "user", content: prompt }],
